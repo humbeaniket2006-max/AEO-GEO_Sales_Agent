@@ -1,0 +1,15 @@
+# API keys / secrets
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Generated output
+output/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+venv/
