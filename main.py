@@ -50,7 +50,7 @@ def print_info(text):
 
 # ── Pipeline ──────────────────────────────────────────────────────────────────
 
-def run_pipeline(company_url: str, persona: str, verbose: bool = False, output_slug: str | None = None):
+def run_pipeline(company_url: str, persona: str, verbose: bool = False, output_slug=None):
 
     start = time.time()
 
