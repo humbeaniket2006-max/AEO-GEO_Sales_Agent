@@ -130,13 +130,16 @@ def run_pipeline(company_url: str, persona: str, verbose: bool = False, output_s
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="AEO/GEO Sales Agent — generates personalised audit deck + cold email"
-    )
-    parser.add_argument("--url",      required=True, help="Prospect company URL (e.g. lumenanalytics.com)")
-    parser.add_argument("--persona",  default="CMO", help="Target persona (CMO, SEO Lead, Head of Growth, Founder)")
-    parser.add_argument("--verbose",  action="store_true", help="Print extra debug info")
-    parser.add_argument("--output-slug", default=None, help="Output filename prefix for Streamlit/cloud runs")
-    args = parser.parse_args()
+    if "--url" not in sys.argv and "-h" not in sys.argv and "--help" not in sys.argv:
+        import app
+    else:
+        parser = argparse.ArgumentParser(
+            description="AEO/GEO Sales Agent — generates personalised audit deck + cold email"
+        )
+        parser.add_argument("--url",      required=True, help="Prospect company URL (e.g. lumenanalytics.com)")
+        parser.add_argument("--persona",  default="CMO", help="Target persona (CMO, SEO Lead, Head of Growth, Founder)")
+        parser.add_argument("--verbose",  action="store_true", help="Print extra debug info")
+        parser.add_argument("--output-slug", default=None, help="Output filename prefix for Streamlit/cloud runs")
+        args = parser.parse_args()
 
-    run_pipeline(args.url, args.persona, verbose=args.verbose, output_slug=args.output_slug)
+        run_pipeline(args.url, args.persona, verbose=args.verbose, output_slug=args.output_slug)
