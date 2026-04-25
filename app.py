@@ -1,15 +1,14 @@
 import streamlit as st
-import subprocess
-import json
 import os
-import sys
 import re
 import traceback
+from main import run_pipeline
 
 st.set_page_config(page_title="AEO/GEO Sales Agent", page_icon="🎯", layout="centered")
 
 st.title("🎯 AEO / GEO Sales Agent")
 st.caption("Generate a personalised AI visibility audit deck + cold email in ~60 seconds")
+st.caption("Build: app.py direct pipeline runner")
 
 with st.form("prospect_form"):
     url     = st.text_input("Prospect website URL", placeholder="clay.com")
@@ -28,30 +27,9 @@ if submit and url:
         safe = _safe_slug(url)
 
         with st.spinner("Running pipeline... (~60 seconds)"):
-            result = subprocess.run(
-                [sys.executable, "main.py", "--url", url, "--persona", persona, "--output-slug", safe],
-                capture_output=True,
-                text=True,
-                cwd=app_dir,
-                env={**os.environ, "PYTHONPATH": app_dir}
-            )
+            data = run_pipeline(url, persona, output_slug=safe)
 
-        json_path = os.path.join(app_dir, "output", f"{safe}_agent_output.json")
-
-        if result.returncode != 0:
-            st.error("Pipeline failed.")
-            if result.stdout:
-                st.subheader("stdout")
-                st.code(result.stdout)
-            if result.stderr:
-                st.subheader("stderr")
-                st.code(result.stderr)
-            st.stop()
-
-        if os.path.exists(json_path):
-            with open(json_path) as f:
-                data = json.load(f)
-
+        if data:
             email   = data.get("email", {})
             audit   = data.get("audit", {})
             profile = data.get("profile", {})
@@ -83,13 +61,7 @@ if submit and url:
                         use_container_width=True
                     )
         else:
-            st.error("Pipeline finished but output JSON was not found.")
-            if result.stdout:
-                st.subheader("stdout")
-                st.code(result.stdout)
-            if result.stderr:
-                st.subheader("stderr")
-                st.code(result.stderr)
+            st.error("Pipeline did not return results.")
     except Exception:
         st.error("App crashed while displaying results.")
         st.code(traceback.format_exc())
