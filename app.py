@@ -3,6 +3,7 @@ import subprocess
 import json
 import os
 import sys
+import re
 
 st.set_page_config(page_title="AEO/GEO Sales Agent", page_icon="🎯", layout="centered")
 
@@ -17,19 +18,18 @@ with st.form("prospect_form"):
 if submit and url:
     # Resolve the directory where this app.py lives
     app_dir = os.path.dirname(os.path.abspath(__file__))
+    safe = re.sub(r"[^a-z0-9_]+", "_", url.replace("https://", "").replace("http://", "").split("/")[0].lower()).strip("_")
 
     with st.spinner("Running pipeline... (~60 seconds)"):
         result = subprocess.run(
-            [sys.executable, "main.py", "--url", url, "--persona", persona],
+            [sys.executable, "main.py", "--url", url, "--persona", persona, "--output-slug", safe],
             capture_output=True,
             text=True,
             cwd=app_dir,
             env={**os.environ, "PYTHONPATH": app_dir}
         )
 
-    safe = url.replace("https://", "").replace("http://", "").split("/")[0].split(".")[0]
     json_path = os.path.join(app_dir, "output", f"{safe}_agent_output.json")
-    deck_path = os.path.join(app_dir, "output", f"{safe}_aeo_audit.pptx")
 
     if os.path.exists(json_path):
         with open(json_path) as f:
@@ -38,6 +38,7 @@ if submit and url:
         email   = data.get("email", {})
         audit   = data.get("audit", {})
         profile = data.get("profile", {})
+        deck_path = os.path.join(app_dir, data.get("deck", ""))
 
         st.success(f"✓ Done — {profile.get('company_name')} | {profile.get('category')}")
 

@@ -50,7 +50,7 @@ def print_info(text):
 
 # ── Pipeline ──────────────────────────────────────────────────────────────────
 
-def run_pipeline(company_url: str, persona: str, verbose: bool = False):
+def run_pipeline(company_url: str, persona: str, verbose: bool = False, output_slug: str | None = None):
 
     start = time.time()
 
@@ -112,7 +112,7 @@ def run_pipeline(company_url: str, persona: str, verbose: bool = False):
 
     # Save full output to JSON
     os.makedirs("output", exist_ok=True)
-    safe = profile.get("company_name", "prospect").replace(" ", "_").lower()
+    safe = output_slug or profile.get("company_name", "prospect").replace(" ", "_").lower()
     json_path = f"output/{safe}_agent_output.json"
     with open(json_path, "w") as f:
         json.dump({
@@ -136,6 +136,7 @@ if __name__ == "__main__":
     parser.add_argument("--url",      required=True, help="Prospect company URL (e.g. lumenanalytics.com)")
     parser.add_argument("--persona",  default="CMO", help="Target persona (CMO, SEO Lead, Head of Growth, Founder)")
     parser.add_argument("--verbose",  action="store_true", help="Print extra debug info")
+    parser.add_argument("--output-slug", default=None, help="Output filename prefix for Streamlit/cloud runs")
     args = parser.parse_args()
 
-    run_pipeline(args.url, args.persona, verbose=args.verbose)
+    run_pipeline(args.url, args.persona, verbose=args.verbose, output_slug=args.output_slug)

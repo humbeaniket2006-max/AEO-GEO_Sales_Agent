@@ -6,7 +6,7 @@ Primary:  Playwright headless browser → Perplexity.ai (free, no API key)
 Fallback: Groq LLM simulation (asks the model what it would say — proxy for AI answer)
 """
 
-import sys, os, time, re
+import sys, os, time, re, shutil
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from config import QUERIES_TO_RUN, PERPLEXITY_WAIT
@@ -14,6 +14,23 @@ from utils.llm import chat_json, chat
 
 
 # ── Perplexity scraping via Playwright ───────────────────────────────────────
+
+def _chromium_launch_options() -> dict:
+    """
+    Streamlit Cloud can install system Chromium via packages.txt, but Playwright
+    will not automatically use that binary. Point to it when it exists.
+    """
+    options = {
+        "headless": True,
+        "args": ["--no-sandbox", "--disable-dev-shm-usage"],
+    }
+    for binary in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
+        executable_path = shutil.which(binary)
+        if executable_path:
+            options["executable_path"] = executable_path
+            break
+    return options
+
 
 def _query_perplexity_playwright(query: str) -> str | None:
     """
@@ -23,7 +40,7 @@ def _query_perplexity_playwright(query: str) -> str | None:
     try:
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(**_chromium_launch_options())
             page = browser.new_page()
             page.goto("https://www.perplexity.ai", timeout=20000)
             page.wait_for_timeout(2000)
@@ -140,6 +157,7 @@ def run(profile: dict, keywords: list[dict]) -> dict:
 
     results = []
     all_competitors = {}
+    used_perplexity = False
 
     for i, kw in enumerate(queries_to_run, 1):
         query = kw["query"]
@@ -153,6 +171,7 @@ def run(profile: dict, keywords: list[dict]) -> dict:
             answer_text = _query_perplexity_playwright(query)
             if answer_text:
                 source = "perplexity"
+                used_perplexity = True
 
         if not answer_text:
             answer_text = _query_groq_simulation(query, company, category)
@@ -181,7 +200,7 @@ def run(profile: dict, keywords: list[dict]) -> dict:
         "not_cited_count":   not_cited_count,
         "citation_rate_pct": round(cited_count / len(results) * 100) if results else 0,
         "top_competitors":   [{"name": c[0], "mentions": c[1]} for c in top_competitors],
-        "data_source":       "perplexity" if playwright_available else "groq_simulation",
+        "data_source":       "perplexity" if used_perplexity else "groq_simulation",
     }
 
     print(f"  [Stage 4] ✓ Cited in {cited_count}/{len(results)} queries ({audit['citation_rate_pct']}%)")
