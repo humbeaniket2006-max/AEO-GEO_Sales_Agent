@@ -85,6 +85,25 @@ st.markdown(
             padding: 1rem;
             box-shadow: 0 8px 24px rgba(13, 27, 42, 0.06);
         }
+        div[data-testid="stMetric"] label,
+        div[data-testid="stMetric"] [data-testid="stMetricLabel"],
+        div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+            color: #0D1B2A !important;
+            opacity: 1 !important;
+        }
+        div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+            color: #049B5C !important;
+            opacity: 1 !important;
+        }
+        div[data-testid="stAlert"] {
+            background: #FFF7D6;
+            border: 1px solid #F2C94C;
+            color: #0D1B2A;
+        }
+        div[data-testid="stAlert"] * {
+            color: #0D1B2A !important;
+            opacity: 1 !important;
+        }
         .hero-card {
             border: 1px solid #E6EDF5;
             border-radius: 8px;
@@ -99,18 +118,52 @@ st.markdown(
             background: linear-gradient(180deg, #FFFFFF, #F8FBFE);
         }
         .section-label {
-            color: #52667A;
+            color: #9FB3C8;
             font-size: 0.78rem;
             font-weight: 700;
             letter-spacing: 0;
             text-transform: uppercase;
         }
         .big-rate {
-            color: #0D1B2A;
+            color: #EAF6FF;
             font-size: 3.2rem;
             font-weight: 800;
             line-height: 1;
             margin: 0.1rem 0 0.35rem;
+        }
+        .intent-panel {
+            margin-top: 1rem;
+            border: 1px solid #2A3442;
+            border-radius: 8px;
+            padding: 1rem;
+            background: #101722;
+        }
+        .intent-row {
+            display: grid;
+            grid-template-columns: 150px 1fr 56px;
+            gap: 0.8rem;
+            align-items: center;
+            margin: 0.7rem 0;
+        }
+        .intent-name, .intent-value {
+            color: #F8FAFC;
+            font-weight: 700;
+        }
+        .intent-track {
+            height: 16px;
+            border-radius: 999px;
+            background: #273241;
+            overflow: hidden;
+            border: 1px solid #394657;
+        }
+        .intent-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: #00B4D8;
+        }
+        .intent-zero {
+            width: 3px;
+            background: #FF4D6D;
         }
         .center-download div[data-testid="stDownloadButton"] > button {
             min-height: 3.4rem;
@@ -301,8 +354,33 @@ with tab_queries:
             .mul(100)
             .round()
             .rename("Citation rate")
+            .reset_index()
         )
-        st.bar_chart(intent_chart)
+        st.markdown("#### Citation rate by intent")
+        bars = []
+        for _, row in intent_chart.iterrows():
+            intent_name = row["intent"] or "unknown"
+            rate = int(row["Citation rate"] or 0)
+            fill_class = "intent-fill intent-zero" if rate == 0 else "intent-fill"
+            fill_width = 0 if rate == 0 else min(max(rate, 0), 100)
+            bars.append(
+                f"""
+                <div class="intent-row">
+                    <div class="intent-name">{intent_name}</div>
+                    <div class="intent-track"><div class="{fill_class}" style="width:{fill_width}%"></div></div>
+                    <div class="intent-value">{rate}%</div>
+                </div>
+                """
+            )
+        st.markdown(
+            f"""
+            <div class="intent-panel">
+                {''.join(bars)}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.caption("A 0% row means that intent type was tested but none of its queries cited the prospect.")
 
 with tab_download:
     st.markdown(
