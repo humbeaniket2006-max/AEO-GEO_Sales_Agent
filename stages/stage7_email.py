@@ -107,11 +107,11 @@ def _build_flags(profile: dict, audit: dict) -> list[str]:
     """Salesperson review flags — things the agent is uncertain about."""
     flags = []
     if not profile.get("marketing_lead_name"):
-        flags.append("⚠ Couldn't confirm lead name — personalise salutation manually")
+        flags.append("Couldn't confirm lead name — personalize the salutation manually")
     if audit.get("data_source") == "groq_simulation":
-        flags.append("⚠ AI audit used LLM simulation (not live Perplexity data) — install Playwright for real citations")
+        flags.append("AI audit used LLM simulation, not live Perplexity data — run `playwright install chromium` for real citations")
     if audit.get("citation_rate_pct", 0) == 0 and audit.get("total_queries", 0) == 0:
-        flags.append("⚠ No audit data — scraping may have failed; review manually")
+        flags.append("No audit data — scraping may have failed; review manually")
     if not profile.get("category"):
-        flags.append("⚠ Category unknown — verify before sending")
+        flags.append("Category unknown — verify before sending")
     return flags
