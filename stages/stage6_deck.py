@@ -6,6 +6,7 @@ Builds an 8-slide PowerPoint deck using python-pptx.
 """
 
 import sys, os
+from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from pptx import Presentation
@@ -157,72 +158,117 @@ def _select_gaps(profile, audit):
         return GAP_LIBRARY[:4]
 
 
-def _generate_recommendations(profile, gaps):
+def _generate_recommendations(profile, gaps, audit):
     """3 company-specific 90-day action phases via LLM."""
     gaps_text = "\n".join(f"- {g}" for g in gaps)
+    company = profile.get("company_name", "your company")
+    category = profile.get("category", "your category")
+    citation_rate = int(audit.get("citation_rate_pct", 0) or 0)
+    top_competitors = [c.get("name") for c in audit.get("top_competitors", []) if c.get("name")]
+    top_competitor = top_competitors[0] if top_competitors else "your top competitor"
     try:
         result = chat_json(
             system=(
                 "You are a senior AEO/GEO strategist. Generate a 3-phase 90-day action plan. "
                 "Return a JSON array with exactly 3 objects, each with keys: "
                 "'phase' (e.g. 'Month 1 — Foundation'), 'action' (1 bold sentence max 18 words), "
-                "'detail' (1 sentence max 25 words). "
-                "Make recommendations SPECIFIC to the company's category and gaps. "
+                "'detail' (1 sentence max 25 words), "
+                "'difficulty' ('quick_win' | 'moderate' | 'strategic'), "
+                "'metric_target' (e.g. 'Lift citation rate from 20% to 45%'). "
+                "Make recommendations SPECIFIC to the company's category, current citation rate, "
+                "top competitors, and gaps. "
                 "Return only valid JSON array, no markdown."
             ),
             user=(
-                f"Company: {profile.get('company_name')}\n"
-                f"Category: {profile.get('category')}\n"
+                f"Company: {company}\n"
+                f"Category: {category}\n"
                 f"One-liner: {profile.get('one_liner')}\n"
                 f"Target customers: {profile.get('target_customers')}\n"
                 f"Key differentiator: {profile.get('key_differentiator')}\n"
+                f"Current citation_rate_pct: {citation_rate}%\n"
+                f"Top competitors: {top_competitors or ['No named competitors found']}\n"
+                f"Total queries: {audit.get('total_queries', 0)}\n"
+                f"Cited queries: {audit.get('cited_count', 0)}\n"
                 f"Key gaps:\n{gaps_text}\n"
             )
         )
-        if isinstance(result, list) and len(result) == 3:
+        required = {"phase", "action", "detail", "difficulty", "metric_target"}
+        if isinstance(result, list) and len(result) == 3 and all(isinstance(r, dict) and required.issubset(r) for r in result):
             return result
     except Exception:
         pass
     return [
         {"phase": "Month 1 — Foundation",
-         "action": "Add FAQ schema, HowTo markup, and author bios to all content pages",
-         "detail": "Ensures AI parsers can extract and cite your brand in structured answers."},
+         "action": f"Make {company}'s {category} expertise machine-readable across priority pages",
+         "detail": f"Add FAQ/schema blocks around uncited buyer questions so AI systems can confidently cite {company}.",
+         "difficulty": "quick_win",
+         "metric_target": f"Goal: citation rate {citation_rate}% → {max(citation_rate + 30, 30)}%"},
         {"phase": "Month 2 — Content",
-         "action": "Publish comparison pages; refresh top-traffic posts with AI-friendly formatting",
-         "detail": "Targets high-intent decision queries where AI models select citations."},
+         "action": f"Publish {category} comparison and alternative pages against {top_competitor}",
+         "detail": f"Target commercial and comparative prompts where {top_competitor} is currently earning AI mentions.",
+         "difficulty": "moderate",
+         "metric_target": f"Lift cited queries from {audit.get('cited_count', 0)} to {min(audit.get('total_queries', 0), audit.get('cited_count', 0) + 3)}"},
         {"phase": "Month 3 — Authority",
-         "action": "Earn 3+ third-party citations; launch thought leadership for uncited queries",
-         "detail": "Builds off-site authority signals that AI citation algorithms prioritise."},
+         "action": f"Earn third-party citations that position {company} as a {category} authority",
+         "detail": f"Build off-site proof so AI answers do not default to {top_competitor} for category recommendations.",
+         "difficulty": "strategic",
+         "metric_target": f"Reach {min(citation_rate + 45, 75)}% citation visibility by day 90"},
     ]
 
 
 def _generate_why_now(profile, audit):
     """4 company-specific urgency bullets via LLM."""
+    company = profile.get("company_name", "your company")
+    category = profile.get("category", "your category")
+    citation_rate = int(audit.get("citation_rate_pct", 0) or 0)
+    top_competitor = audit.get("top_competitors", [{}])[0].get("name", "your top competitor") if audit.get("top_competitors") else "your top competitor"
     try:
         result = chat_json(
             system=(
                 "You write urgency-focused sales copy for AEO/GEO audits. "
-                "Generate exactly 4 punchy sentences explaining WHY this company needs to act NOW. "
-                "Each sentence max 18 words. Be specific to their category and competitive position. "
-                "Return a JSON array of 4 strings only, no markdown."
+                "Generate exactly 4 urgency cards explaining WHY this company needs to act NOW. "
+                "Return a JSON array with exactly 4 objects, each with keys: "
+                "'stat' (short number, phrase, or emoji-friendly headline max 10 chars), "
+                "'point' (punchy sentence max 18 words), "
+                "'source_tag' (short attribution string), "
+                "'icon' (a single emoji representing the urgency type). "
+                "Weave in the prospect's citation_rate_pct as a data point in at least 1 item. "
+                "Reference the top competitor by name in at least 1 item. "
+                "Reference the specific category in at least 1 item. "
+                "Return only valid JSON array, no markdown."
             ),
             user=(
-                f"Company: {profile.get('company_name')}\n"
-                f"Category: {profile.get('category')}\n"
-                f"AI citation rate: {audit.get('citation_rate_pct', 0)}%\n"
-                f"Top competitor cited: {audit.get('top_competitors', [{}])[0].get('name', 'competitors') if audit.get('top_competitors') else 'competitors'}\n"
+                f"Company: {company}\n"
+                f"Category: {category}\n"
+                f"AI citation rate: {citation_rate}%\n"
+                f"Top competitor cited: {top_competitor}\n"
                 f"Differentiator: {profile.get('key_differentiator', '')}\n"
+                f"Total audit queries: {audit.get('total_queries', 0)}\n"
+                f"Queries where company was not cited: {audit.get('not_cited_count', 0)}\n"
             )
         )
-        if isinstance(result, list) and len(result) == 4:
+        required = {"stat", "point", "source_tag", "icon"}
+        if isinstance(result, list) and len(result) == 4 and all(isinstance(r, dict) and required.issubset(r) for r in result):
             return result
     except Exception:
         pass
     return [
-        "AI search habits are forming now — early movers lock in citation positions permanently",
-        "Competitor brands are investing in AEO today; the leapfrog window is 6–12 months",
-        "Google's AI Overviews algorithm is maturing — influence now costs less than in 2026",
-        "Every month of invisibility sends buyers directly to your top competitors",
+        {"stat": f"{citation_rate}%",
+         "point": f"{company} is cited in only {citation_rate}% of tested AI answers today.",
+         "source_tag": "Your audit data",
+         "icon": "📉"},
+        {"stat": "1st",
+         "point": f"{top_competitor} is already shaping buyer shortlists before {company} enters the conversation.",
+         "source_tag": "Your audit data",
+         "icon": "🏁"},
+        {"stat": "AI",
+         "point": f"{category} recommendations are being rewritten inside AI answers, not just search results.",
+         "source_tag": "BrightEdge 2024",
+         "icon": "🔍"},
+        {"stat": "90d",
+         "point": f"Every uncited month makes {company}'s authority gap harder and more expensive to close.",
+         "source_tag": "AEO benchmark",
+         "icon": "⏳"},
     ]
 
 
@@ -429,49 +475,83 @@ def _slide5_gaps(prs, gaps):
             _text(sl, desc_part, 1.3, ty + 0.6, 8.1, 0.6, size=12, color=C_MUTED)
 
 
-def _slide6_recommendations(prs, profile, recs):
+def _slide6_recommendations(prs, profile, audit, recs):
     sl = _slide(prs)
     _bg(sl, C_NAVY)
 
     _tag(sl, "Action Plan", 0.5, 0.25)
-    _text(sl, "What We'd Do: 90-Day Fix", 0.5, 0.52, 9, 0.65, size=30, bold=True, color=C_WHITE)
-    _text(sl, f"Tailored for {profile.get('company_name', 'your company')}",
-          0.5, 1.22, 8, 0.38, size=13, color=C_MUTED, italic=True)
+    _text(sl, "Your 90-Day AI Visibility Roadmap", 0.5, 0.52, 9.1, 0.65, size=29, bold=True, color=C_WHITE)
+    _text(sl, f"Tailored for {profile.get('company_name', 'your company')} at {audit.get('citation_rate_pct', 0)}% current citation visibility",
+          0.5, 1.16, 8.8, 0.38, size=12, color=C_MUTED, italic=True)
 
     phase_colors = [C_ACCENT, C_GREEN, C_AMBER]
+    months = ["Month 1", "Month 2", "Month 3"]
+    for i, month in enumerate(months):
+        lx = 0.5 + i * 3.07
+        _rect(sl, lx, 1.68, 2.95, 0.34, fill_color=phase_colors[i])
+        _text(sl, month, lx, 1.72, 2.95, 0.24, size=9, bold=True, color=C_NAVY, align=PP_ALIGN.CENTER)
+
+    difficulty_meta = {
+        "quick_win": ("Quick Win", C_GREEN),
+        "moderate": ("Moderate", C_AMBER),
+        "strategic": ("Strategic", C_RED),
+    }
 
     for i, rec in enumerate(recs[:3]):
-        ty = 1.78 + i * 1.82
-        _rect(sl, 0.5, ty, 9.2, 1.62, fill_color=C_CARD)
-        _rect(sl, 0.5, ty, 0.07, 1.62, fill_color=phase_colors[i])
+        ty = 2.32 + i * 1.55
+        _rect(sl, 0.5, ty, 9.2, 1.34, fill_color=C_CARD)
+        _rect(sl, 0.5, ty, 0.07, 1.34, fill_color=phase_colors[i])
 
-        _number_circle(sl, i + 1, 0.73, ty + 0.58, sz=0.42,
+        _number_circle(sl, i + 1, 0.73, ty + 0.45, sz=0.42,
                        bg=phase_colors[i], fg=C_NAVY)
 
         phase_label = rec.get("phase", f"Month {i+1}")
         action_text = rec.get("action", "")
         detail_text = rec.get("detail", "")
+        metric_target = rec.get("metric_target", f"Goal: citation rate {audit.get('citation_rate_pct', 0)}% → {min(int(audit.get('citation_rate_pct', 0) or 0) + 25, 75)}%")
+        difficulty_key = rec.get("difficulty", "moderate")
+        difficulty_label, difficulty_color = difficulty_meta.get(difficulty_key, difficulty_meta["moderate"])
 
-        _text(sl, phase_label, 1.32, ty + 0.1, 7.9, 0.4,
+        _text(sl, phase_label, 1.32, ty + 0.11, 4.9, 0.28,
               size=11, bold=True, color=phase_colors[i])
-        _text(sl, action_text, 1.32, ty + 0.55, 7.9, 0.52, size=14, bold=True, color=C_WHITE)
-        _text(sl, detail_text, 1.32, ty + 1.12, 7.9, 0.42, size=11, color=C_MUTED)
+        pill_w = 1.0 if difficulty_key == "moderate" else 1.18
+        _rect(sl, 8.18, ty + 0.1, pill_w, 0.28, fill_color=difficulty_color)
+        _text(sl, difficulty_label, 8.18, ty + 0.135, pill_w, 0.18,
+              size=7, bold=True, color=C_NAVY, align=PP_ALIGN.CENTER)
+        _text(sl, action_text, 1.32, ty + 0.43, 7.9, 0.36, size=13, bold=True, color=C_WHITE)
+        _text(sl, detail_text, 1.32, ty + 0.82, 7.9, 0.28, size=10, color=C_MUTED)
+        _text(sl, metric_target, 1.32, ty + 1.12, 7.9, 0.22, size=9, bold=True, color=C_ACCENT2)
 
 
-def _slide7_why_now(prs, why_now_points):
+def _slide7_why_now(prs, profile, audit, why_now_points):
     sl = _slide(prs)
     _bg(sl, C_NAVY)
 
     _tag(sl, "Urgency", 0.5, 0.25)
-    _text(sl, "Why Now?", 0.5, 0.52, 9, 0.65, size=34, bold=True, color=C_WHITE)
+    now = datetime.now()
+    current_quarter = ((now.month - 1) // 3) + 1
+    company = profile.get("company_name", "Your Company")
+    _text(sl, f"Why {company} Must Act in Q{current_quarter} {now.year}",
+          0.5, 0.52, 9.1, 0.65, size=28, bold=True, color=C_WHITE)
+    _text(sl, f"{audit.get('citation_rate_pct', 0)}% AI citation rate means the buyer journey is already moving without you.",
+          0.5, 1.18, 8.8, 0.35, size=12, color=C_MUTED, italic=True)
 
-    row_bg = [C_CARD, C_DEEPCARD, C_CARD, C_DEEPCARD]
+    positions = [(0.5, 1.82), (5.05, 1.82), (0.5, 4.28), (5.05, 4.28)]
+    accents = [C_RED, C_AMBER, C_ACCENT, C_GREEN]
 
     for i, pt in enumerate(why_now_points[:4]):
-        ty = 1.38 + i * 1.52
-        _rect(sl, 0.5, ty, 9.2, 1.32, fill_color=row_bg[i])
-        _number_circle(sl, i + 1, 0.68, ty + 0.44, sz=0.42, bg=C_ACCENT, fg=C_NAVY)
-        _text(sl, pt, 1.28, ty + 0.3, 8.1, 0.72, size=14, color=C_WHITE)
+        lx, ty = positions[i]
+        if isinstance(pt, str):
+            item = {"stat": "", "point": pt, "source_tag": "AEO benchmark", "icon": "⚡"}
+        else:
+            item = pt
+        _rect(sl, lx, ty, 4.35, 1.92, fill_color=C_CARD)
+        _rect(sl, lx, ty, 0.06, 1.92, fill_color=accents[i])
+        _text(sl, item.get("icon", "⚡"), lx + 0.24, ty + 0.16, 0.7, 0.48, size=22, bold=True, color=C_WHITE)
+        _text(sl, item.get("stat", ""), lx + 1.02, ty + 0.19, 2.8, 0.45, size=18, bold=True, color=accents[i])
+        _text(sl, item.get("point", ""), lx + 0.24, ty + 0.82, 3.85, 0.62, size=12, bold=True, color=C_WHITE)
+        _text(sl, item.get("source_tag", "AEO benchmark"), lx + 0.24, ty + 1.58, 3.85, 0.22,
+              size=8, color=C_MUTED)
 
 
 def _slide8_cta(prs, profile):
@@ -510,7 +590,7 @@ def run(profile: dict, keywords: list, audit: dict) -> str:
     profile["top_competitors_preview"] = audit.get("top_competitors", [])[:3]
 
     print("  [Stage 6] Generating company-specific recommendations via LLM...")
-    recs = _generate_recommendations(profile, gaps)
+    recs = _generate_recommendations(profile, gaps, audit)
 
     print("  [Stage 6] Generating company-specific why-now points via LLM...")
     why_now = _generate_why_now(profile, audit)
@@ -525,8 +605,8 @@ def run(profile: dict, keywords: list, audit: dict) -> str:
     _slide3_where_you_stand(prs, profile, audit)
     _slide4_competitors(prs, audit)
     _slide5_gaps(prs, gaps)
-    _slide6_recommendations(prs, profile, recs)
-    _slide7_why_now(prs, why_now)
+    _slide6_recommendations(prs, profile, audit, recs)
+    _slide7_why_now(prs, profile, audit, why_now)
     _slide8_cta(prs, profile)
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
